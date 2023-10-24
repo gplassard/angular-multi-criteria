@@ -1,6 +1,6 @@
 import {Component, EventEmitter, OnDestroy, OnInit} from '@angular/core';
 import {SearchResult, SearchService} from "./search.service";
-import {merge, Observable, switchMap, tap} from "rxjs";
+import {debounceTime, merge, Observable, of, switchMap, tap} from "rxjs";
 import {fromPromise} from "rxjs/internal/observable/innerFrom";
 
 @Component({
@@ -20,14 +20,19 @@ export class SearchComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.criteriaChanges.asObservable()
       .pipe(
+        tap((value) => console.log("before debounce", value)),
+        debounceTime(200),
         tap((value) => console.log("before switchMap", value)),
-        tap(() => this.searchResults = []),
         switchMap(criteria => this.search(criteria)),
         tap((value) => console.log("after switchMap", value)),
       )
       .subscribe((v) => {
-        console.log("subscribe", v);
-        this.searchResults = [...this.searchResults, ...v];
+        if (v === "start") {
+          this.searchResults = [];
+        }
+        else {
+          this.searchResults = [...this.searchResults, ...v];
+        }
       })
   }
 
@@ -41,11 +46,12 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.criteriaChanges.unsubscribe();
   }
 
-  private search(criteria: string): Observable<SearchResult[]> {
+  private search(criteria: string): Observable<"start" | SearchResult[]> {
     return merge(
-      fromPromise(this.searchService.searchCriteria(1, criteria)),
-      fromPromise(this.searchService.searchCriteria(2, criteria)),
-      fromPromise(this.searchService.searchCriteria(3, criteria)),
-    );
+        of("start" as const),
+        fromPromise(this.searchService.searchCriteria(1, criteria)),
+        fromPromise(this.searchService.searchCriteria(2, criteria)),
+        fromPromise(this.searchService.searchCriteria(3, criteria)),
+    ) ;
   }
 }
